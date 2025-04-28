@@ -5,6 +5,34 @@
 
 using namespace std;
 
+// Стратегия для включения прибора
+class TurnOnStrategy {
+public:
+    virtual void TurnOn(const string& name) = 0;
+    virtual ~TurnOnStrategy() {}
+};
+
+class NormalStart : public TurnOnStrategy {
+public:
+    void TurnOn(const string& name) override {
+        cout << name << " включен в обычном режиме." << endl;
+    }
+};
+
+class EcoStart : public TurnOnStrategy {
+public:
+    void TurnOn(const string& name) override {
+        cout << name << " включен в энергосберегающем режиме." << endl;
+    }
+};
+
+class PreheatStart : public TurnOnStrategy {
+public:
+    void TurnOn(const string& name) override {
+        cout << name << " включен с предварительным нагревом." << endl;
+    }
+};
+
 class KitchenAppliance
 {
 protected:
@@ -12,17 +40,37 @@ protected:
     int power;
     string manufacturer;
     string material;
+    TurnOnStrategy* strategy;
 public:
-    KitchenAppliance(string n, int p, string m, string mat) : name(n), power(p), manufacturer(m), material(mat) {}
+    KitchenAppliance(string n, int p, string m, string mat) :
+        name(n), power(p), manufacturer(m), material(mat), strategy(nullptr) {
+    }
+
+    void setStrategy(TurnOnStrategy* s) {
+        strategy = s;
+    }
+
     virtual void turn_on() = 0;
+
     virtual void turn_off() {
         cout << name << " выключен." << endl;
     }
+
     virtual void get_info() {
         cout << "Название: " << name << "\nМощность: " << power << " Вт\nПроизводитель: " << manufacturer << "\nМатериал корпуса: " << material << endl;
     }
-    virtual ~KitchenAppliance() {}
+
+    virtual void use() { // Шаблонный метод
+        turn_on();
+        get_info();
+        turn_off();
+    }
+
+    virtual ~KitchenAppliance() {
+        if (strategy) delete strategy;
+    }
 };
+
 
 class Blender : public KitchenAppliance
 {
@@ -35,7 +83,10 @@ public:
     }
 
     void turn_on() override {
-        cout << name << " включен. Вращение ножей на " << speedLevels << " скоростях." << endl;
+        if (strategy)
+            strategy->TurnOn(name);
+        else
+            cout << name << " включен. Вращение ножей на " << speedLevels << " скоростях." << endl;
     }
     void get_info() override {
         KitchenAppliance::get_info();
@@ -54,8 +105,12 @@ public:
     }
 
     void turn_on() override {
-        cout << name << " включена. Нагрев " << (hasGrill ? "с грилем" : "без гриля") << "." << endl;
+        if (strategy)
+            strategy->TurnOn(name);
+        else
+            cout << name << " включена. Нагрев " << (hasGrill ? "с грилем" : "без гриля") << "." << endl;
     }
+
     void get_info() override {
         KitchenAppliance::get_info();
         cout << "Объем камеры: " << volume << " л\nГриль: " << (hasGrill ? "Да" : "Нет") << "\n" << endl;
@@ -73,13 +128,18 @@ public:
     }
 
     void turn_on() override {
-        cout << name << " включена. Заваривание " << coffeeType << " кофе под давлением " << pressure << " бар." << endl;
+        if (strategy)
+            strategy->TurnOn(name);
+        else
+            cout << name << " включена. Заваривание " << coffeeType << " кофе под давлением " << pressure << " бар." << endl;
     }
+
     void get_info() override {
         KitchenAppliance::get_info();
         cout << "Тип кофе: " << coffeeType << "\nДавление помпы: " << pressure << " бар\n" << endl;
     }
 };
+
 
 // Фабричный метод для создания случайного объекта кухонной техники
 typedef KitchenAppliance* KitchenAppliancePtr;
@@ -320,56 +380,40 @@ void processContainer(Iterator<KitchenAppliancePtr>* iterator) {
 
 int main() {
     setlocale(LC_ALL, "Russian");
-    srand(time(nullptr));
+    srand(static_cast<unsigned int>(time(0)));
 
-    cout << "========== ЗАДАНИЕ 1 ==========\n";
-    cout << "1. Реализовать создание итератора во всех разработанных ранее контейнерах\n";
-    cout << "   Все контейнеры унаследованы от ApplianceContainer, реализована функция GetIterator().\n";
+    vector<KitchenAppliance*> appliances;
 
-    // Создаем контейнеры и наполняем их элементами
-    VectorContainer vectorCont;
-    ArrayContainer arrayCont;
+    // Создаем несколько приборов
+    appliances.push_back(new Blender("Philips", 600, "Пластик", 5, 1.5));
+    appliances.push_back(new Microwave("Samsung", 1000, "Металл", 20, true));
+    appliances.push_back(new CoffeeMachine("DeLonghi", 1200, "Сталь", "зерновой", 15));
+    appliances.push_back(new Blender("Bosch", 700, "Сталь", 3, 2.0));
+    appliances.push_back(new Microwave("LG", 900, "Пластик", 25, false));
 
-    for (int i = 0; i < 4; ++i) {
-        vectorCont.Add(createRandomAppliance());
-        arrayCont.Add(createRandomAppliance());
+    // Демонстрация работы с разными стратегиями
+    for (auto appliance : appliances) {
+        int strategy_choice = rand() % 3;
+        switch (strategy_choice) {
+        case 0:
+            appliance->setStrategy(new NormalStart());
+            break;
+        case 1:
+            appliance->setStrategy(new EcoStart());
+            break;
+        case 2:
+            appliance->setStrategy(new PreheatStart());
+            break;
+        }
+
+        appliance->use(); // Шаблонный метод: turn_on + get_info + turn_off
+        cout << "---------------------------------" << endl;
     }
 
-    cout << "\n========== ЗАДАНИЕ 2 ==========\n";
-    cout << "2. Реализовано 3 декоратора для итераторов и демонстрация их работы:\n";
-
-    // Декоратор 1: CountingIterator
-    cout << "\n-- Декоратор CountingIterator (VectorContainer)\n";
-    cout << "   Подсчет количества обработанных элементов во время обхода:\n\n";
-    auto* countingIt = new CountingIterator<KitchenAppliancePtr>(vectorCont.GetIterator());
-    processContainer(countingIt);
-    cout << "   Количество пройденных элементов: " << countingIt->GetCount() << "\n";
-    delete countingIt;
-
-    // Декоратор 2: SkipIterator
-    cout << "\n-- Декоратор SkipIterator (ArrayContainer)\n";
-    cout << "   Пропускаем каждый второй элемент во время обхода:\n\n";
-    processContainer(new SkipIterator<KitchenAppliancePtr>(arrayCont.GetIterator()));
-
-    // Декоратор 3: FilterBlenderIterator
-    cout << "\n-- Декоратор FilterBlenderIterator (VectorContainer)\n";
-    cout << "   Отображаются только блендеры:\n\n";
-    processContainer(new FilterBlenderIterator<KitchenAppliancePtr>(vectorCont.GetIterator()));
-
-    cout << "\n========== ЗАДАНИЕ 3 ==========\n";
-    cout << "3. Адаптер для итераторов STL\n";
-    cout << "   Используется стандартный контейнер STL с адаптером ConstIteratorAdapter:\n";
-
-    // Создаем list и заполняем его объектами
-    list<KitchenAppliancePtr> stlList;
-    for (int i = 0; i < 4; ++i) {
-        stlList.push_back(createRandomAppliance());
+    // Освобождение памяти
+    for (auto appliance : appliances) {
+        delete appliance;
     }
-
-    // Используем адаптер для обхода
-    auto* stlAdapter = new ConstIteratorAdapter<list<KitchenAppliancePtr>, KitchenAppliancePtr>(&stlList);
-    processContainer(stlAdapter);
-    delete stlAdapter;
 
     return 0;
 }
